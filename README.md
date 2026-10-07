@@ -1,15 +1,44 @@
-# Northstar CRM
+# Northstar AI — B2B Growth Copilot
 
-Customer intelligence and push campaign dashboard built on Hatchable.
+Northstar is a portfolio-grade AI product prototype for B2B operations and sales teams. It turns messy CSV/XLS/XLSX data into an actionable workflow: upload → map → validate → analyze → investigate → act.
 
-## Features
+## Current MVP
+- CSV, XLS and XLSX uploads
+- Multiple-file ingestion in one session
+- Flexible column recognition for common B2B names
+- Data-quality scoring
+- Order-value aggregation
+- Opportunity Radar
+- Chat-style business copilot
+- Customer ranking and business summaries
+- In-browser data preview
+- Deterministic calculations for numerical answers
 
-- Customer, product, and order analytics
-- CSV/XLS/XLSX AI-assisted import workflow
-- Customer explorer and segmentation
-- Orders analysis
-- Push campaign composer and history
-- Bulk-safe imports with duplicate protection
-- Customer/product/order synchronization
+## Product thesis
+B2B teams often have useful data trapped in inconsistent spreadsheets. The highest-value AI experience is not merely answering questions; it is reducing the workflow from manual cleanup and spreadsheet analysis to upload, ask and act.
 
-Live app: https://customer.hatchable.site
+## Production architecture
+User → Copilot Orchestrator → Intent Router → Data Analysis Agent / RAG Agent / Recommendation Agent → Structured Data Store + Vector Store → Evidence-backed response.
+
+The LLM should explain and orchestrate, while deterministic code or database queries perform calculations. This separation reduces hallucination risk.
+
+## Metrics
+- Data import success rate
+- Automatic mapping rate
+- Data-quality pass rate
+- Correct-answer rate on evaluation set
+- Recommendation acceptance rate
+- Time-to-insight
+- Median response latency
+- Cost per AI interaction
+
+## Interview talking points
+1. Problem: spreadsheet-heavy B2B teams lose time cleaning and interpreting data.
+2. User: sales and operations teams that need fast answers without becoming analysts.
+3. MVP: reliable ingestion and evidence-backed analysis before autonomous actions.
+4. Trade-off: deterministic calculations for facts; AI for interpretation and workflow.
+5. Risks: schema ambiguity, bad data, hallucination, privacy, latency and token cost.
+6. Experiment: measure whether opportunity recommendations actually change user action.
+
+## Disclaimer
+This is an independent portfolio project and is not affiliated with or endorsed by IndiaMART.
