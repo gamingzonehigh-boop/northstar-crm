@@ -14,17 +14,186 @@
 <div class="card" style="margin-top:16px"><div class="section-title">Data preview</div><div id="preview" class="empty">Upload a file to preview normalized records.</div></div></main></div>
 <script>
 let rows=[],headers=[],fileNames=[];
-const aliases={customer:['customer','customer_name','customer name','buyer','buyer_name','party','client','company'],value:['order_value','order value','order amount','amount','revenue','gmv','total order','total_order','value'],date:['date','order_date','order date','created_at','created date'],product:['product','product_name','product name','item','item_name'],supplier:['supplier','supplier_name','seller','vendor']};
-function norm(s){return String(s||'').trim().toLowerCase().replace(/[\s-]+/g,'_')}
-function field(h){let n=norm(h);for(const [k,a] of Object.entries(aliases))if(a.some(x=>norm(x)===n||n.includes(norm(x))))return k;return null}
-function num(v){if(typeof v==='number')return v;return Number(String(v??'').replace(/[,₹$%\s]/g,''))||0}
-function money(v){return '₹'+(v>=1e7?(v/1e7).toFixed(2)+' Cr':v>=1e5?(v/1e5).toFixed(2)+' L':v.toLocaleString('en-IN',{maximumFractionDigits:0}))}
-function setData(data,name){if(!data.length)return;headers=Object.keys(data[0]);rows=data.filter(r=>Object.values(r).some(v=>String(v).trim()!=='')).map(r=>{let o={raw:r};headers.forEach(h=>o[field(h)||norm(h)]=r[h]);return o});fileNames.push(name);render()}
-function parseFile(f){return new Promise((resolve,reject)=>{let ext=f.name.split('.').pop().toLowerCase();if(ext==='csv')Papa.parse(f,{header:true,skipEmptyLines:true,complete:r=>resolve(r.data),error:reject});else{let rd=new FileReader();rd.onload=e=>{try{let wb=XLSX.read(e.target.result,{type:'array'});resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}))}catch(x){reject(x)}};rd.readAsArrayBuffer(f)}})}
-async function load(fs){for(const f of fs)try{setData(await parseFile(f),f.name)}catch(e){add('ai','I could not read '+f.name+'. Please check that the spreadsheet is valid.')}document.getElementById('files').textContent=fileNames.join(' · ')}
-function makeSignals(){let out=[],by={};rows.forEach(r=>{let c=String(r.customer||'Unknown').trim();(by[c]??=[]).push(r)});let groups=Object.entries(by).filter(x=>x[0]!=='Unknown').sort((a,b)=>b[1].reduce((x,r)=>x+num(r.value),0)-a[1].reduce((x,r)=>x+num(r.value),0));if(groups[0]){let c=groups[0][0],v=groups[0][1].reduce((x,r)=>x+num(r.value),0);out.push({type:'Growth',title:'High-value customer focus',text:c+' represents '+money(v)+' across '+groups[0][1].length+' records. Prioritise retention and expansion.'})}let miss=rows.filter(r=>!r.customer||!r.value).length;if(miss)out.push({type:'Data quality',title:'Records need review',text:miss+' records are missing a customer or order-value field and may distort recommendations.'});if(groups.length>5)out.push({type:'Growth',title:'Customer concentration analysis',text:'There are '+groups.length+' identifiable customers. Compare the top accounts with the long tail to find expansion opportunities.'});if(rows.some(r=>r.date))out.push({type:'Risk',title:'Retention analysis available',text:'Date information was detected. Ask the copilot to investigate inactive or declining ordering behaviour.'});return out.slice(0,5)}
-function render(){let vals=rows.map(r=>num(r.value)).filter(v=>v>0),total=vals.reduce((a,b)=>a+b,0);records.textContent=rows.length.toLocaleString('en-IN');gmv.textContent=money(total);let valid=rows.filter(r=>r.customer!==undefined&&String(r.customer).trim()&&r.value!==undefined&&String(r.value).trim()).length;quality.textContent=(rows.length?Math.round(valid/rows.length*100):0)+'%';let s=makeSignals();opps.textContent=s.length;schema.innerHTML=headers.map(h=>'<span>'+h+(field(h)?' → <b>'+field(h)+'</b>':'')+'</span>').join('');opportunities.innerHTML=s.map(x=>'<div class="opportunity"><span class="pill '+(x.type==='Risk'?'bad':x.type==='Data quality'?'warn':'')+'">'+x.type+'</span><b>'+x.title+'</b><p>'+x.text+'</p></div>').join('')||'<div class="empty">No strong signals yet.</div>';preview.innerHTML='<table><thead><tr>'+headers.slice(0,6).map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.slice(0,8).map(r=>'<tr>'+headers.slice(0,6).map(h=>'<td>'+String(r.raw[h]??'').slice(0,45)+'</td>').join('')+'</tr>').join('')+'</tbody></table>'}
-function add(who,t){let d=document.createElement('div');d.className='msg '+who;d.textContent=t;messages.appendChild(d);d.scrollIntoView()}
-function answer(q){if(!rows.length)return'Please upload a CSV, XLS or XLSX dataset first.';let total=rows.reduce((a,r)=>a+num(r.value),0),vals=rows.map(r=>num(r.value)).filter(Boolean),avg=vals.length?total/vals.length:0,ql=q.toLowerCase();if(ql.includes('missing')||ql.includes('quality'))return'Data quality check:\n• '+rows.length+' records loaded\n• '+rows.filter(r=>!r.customer).length+' missing customer values\n• '+rows.filter(r=>!r.value).length+' missing/unreadable order values\n• Overall required-field score: '+quality.textContent+'\n\nRecommendation: review invalid rows before automated decisions.';if(ql.includes('top')||ql.includes('customer')){let b={};rows.forEach(r=>b[String(r.customer||'Unknown')]=(b[String(r.customer||'Unknown')]||0)+num(r.value));return'Highest-value customers:\n'+Object.entries(b).sort((a,b)=>b[1]-a[1]).slice(0,5).map((x,i)=>(i+1)+'. '+x[0]+' — '+money(x[1])).join('\n')+'\n\nThese values are calculated from the uploaded records.'}if(ql.includes('summar')||ql.includes('business'))return'Business snapshot:\n• '+rows.length.toLocaleString()+' records analyzed\n• Total order value: '+money(total)+'\n• Average order value: '+money(avg)+'\n• Detected columns: '+headers.join(', ')+'\n• '+makeSignals().length+' opportunity/data signals detected';return'I can analyze '+rows.length+' imported records. Try:\n• “Show my top customers”\n• “What data is missing?”\n• “Summarize the business”\n\nNumerical answers are calculated from the uploaded dataset.'}
-file.addEventListener('change',e=>load([...e.target.files]));ask.onclick=()=>{let q=question.value.trim();if(!q)return;add('user',q);question.value='';setTimeout(()=>add('ai',answer(q)),180)};question.addEventListener('keydown',e=>{if(e.key==='Enter')ask.click()});
+
+const aliases={
+  customer:['customer','customer_name','customer name','buyer','buyer_name','buyer name','party','client','company','customer id','buyer name'],
+  value:['order_value','order value','order amount','amount','amount paid','revenue','gmv','total order','total_order','value','sales','sales amount','transaction amount'],
+  date:['date','order_date','order date','date of purchase','purchase date','transaction date','created_at','created date'],
+  product:['product','product_name','product name','item','item_name','item name','item description','description','product description'],
+  supplier:['supplier','supplier_name','seller','vendor','vendor name'],
+  region:['region','zone','territory','area'],
+  payment:['payment status','payment_status','status','paid status'],
+  quantity:['quantity','qty','units','order quantity']
+};
+
+function norm(s){
+  return String(s??'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[\s\-\/]+/g,'_').replace(/[^a-z0-9_₹]/g,'');
+}
+function field(h){
+  const n=norm(h);
+  for(const [k,list] of Object.entries(aliases)){
+    for(const a of list){
+      const x=norm(a);
+      if(n===x || n.includes(x) || x.includes(n)) return k;
+    }
+  }
+  return null;
+}
+function parseAmount(v){
+  if(typeof v==='number' && Number.isFinite(v)) return v;
+  let s=String(v??'').trim().toLowerCase().replace(/₹/g,'').replace(/,/g,'').replace(/\s/g,'');
+  if(!s) return 0;
+  let mult=1;
+  if(s.endsWith('cr')){mult=10000000;s=s.slice(0,-2)}
+  else if(s.endsWith('l')){mult=100000;s=s.slice(0,-1)}
+  else if(s.endsWith('k')){mult=1000;s=s.slice(0,-1)}
+  s=s.replace(/[^0-9.\-]/g,'');
+  const n=Number(s);
+  return Number.isFinite(n)?n*mult:0;
+}
+function num(v){return parseAmount(v)}
+function money(v){
+  v=Number(v)||0;
+  return '₹'+(v>=1e7?(v/1e7).toFixed(2)+' Cr':v>=1e5?(v/1e5).toFixed(2)+' L':v.toLocaleString('en-IN',{maximumFractionDigits:0}));
+}
+function parseCSVText(text){
+  const out=[], row=[]; let cell='', quoted=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i], next=text[i+1];
+    if(quoted){
+      if(ch==='"' && next==='"'){cell+='"';i++}
+      else if(ch==='"') quoted=false;
+      else cell+=ch;
+    }else{
+      if(ch==='"' && cell.length===0) quoted=true;
+      else if(ch===','){row.push(cell);cell=''}
+      else if(ch==='\n' || ch==='\r'){
+        if(ch==='\r' && next==='\n') i++;
+        row.push(cell);cell='';
+        if(row.some(v=>String(v).trim()!=='')){out.push(row.slice());}
+        row.length=0;
+      }else cell+=ch;
+    }
+  }
+  if(cell!=='' || row.length){row.push(cell);if(row.some(v=>String(v).trim()!==''))out.push(row)}
+  if(!out.length) return [];
+  const rawHeaders=out[0].map((h,i)=>String(h??'').replace(/^\uFEFF/,'').trim() || 'Column '+(i+1));
+  return out.slice(1).map(values=>{
+    const obj={};
+    rawHeaders.forEach((h,i)=>obj[h]=values[i]??'');
+    return obj;
+  });
+}
+function setData(data,name){
+  if(!Array.isArray(data)||!data.length) throw new Error('No rows found');
+  const clean=data.filter(r=>r && Object.values(r).some(v=>String(v??'').trim()!==''));
+  if(!clean.length) throw new Error('No non-empty rows found');
+  headers=Object.keys(clean[0]);
+  rows=clean.map(r=>{
+    const o={raw:r};
+    headers.forEach(h=>{const f=field(h); if(f) o[f]=r[h];});
+    return o;
+  });
+  fileNames.push(name);
+  render();
+}
+function parseFile(f){
+  return new Promise((resolve,reject)=>{
+    const ext=f.name.split('.').pop().toLowerCase();
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('Browser could not read the file'));
+    if(ext==='csv'){
+      reader.onload=()=>{
+        try{
+          const text=new TextDecoder('utf-8').decode(reader.result);
+          const data=parseCSVText(text);
+          if(!data.length) throw new Error('CSV contains no readable rows');
+          resolve(data);
+        }catch(e){
+          reject(e);
+        }
+      };
+      reader.readAsArrayBuffer(f);
+    }else{
+      reader.onload=e=>{
+        try{
+          if(typeof XLSX==='undefined') throw new Error('Spreadsheet library failed to load');
+          const wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
+          const first=wb.Sheets[wb.SheetNames[0]];
+          if(!first) throw new Error('Workbook has no readable sheet');
+          const data=XLSX.utils.sheet_to_json(first,{defval:'',raw:false});
+          if(!data.length) throw new Error('Spreadsheet contains no readable rows');
+          resolve(data);
+        }catch(err){reject(err)}
+      };
+      reader.readAsArrayBuffer(f);
+    }
+  });
+}
+async function load(fs){
+  for(const f of fs){
+    try{
+      const data=await parseFile(f);
+      setData(data,f.name);
+      add('ai','Loaded '+f.name+' successfully: '+data.length+' rows detected. I mapped the business fields automatically.');
+    }catch(e){
+      add('ai','I could not read '+f.name+'. '+(e?.message||'Unknown file error')+'. Try opening the CSV in a spreadsheet and saving it as UTF-8 CSV if the problem persists.');
+    }
+  }
+  document.getElementById('files').textContent=fileNames.length?fileNames.join(' · '):'No files loaded';
+}
+function makeSignals(){
+  const out=[],by={};
+  rows.forEach(r=>{
+    const c=String(r.customer||'Unknown').trim();
+    (by[c]??=[]).push(r);
+  });
+  const groups=Object.entries(by).filter(x=>x[0]!=='Unknown').sort((a,b)=>b[1].reduce((x,r)=>x+num(r.value),0)-a[1].reduce((x,r)=>x+num(r.value),0));
+  if(groups[0]){
+    const c=groups[0][0],v=groups[0][1].reduce((x,r)=>x+num(r.value),0);
+    out.push({type:'Growth',title:'High-value customer focus',text:c+' represents '+money(v)+' across '+groups[0][1].length+' records. Prioritise retention and expansion.'});
+  }
+  const miss=rows.filter(r=>!String(r.customer??'').trim()||!String(r.value??'').trim()||num(r.value)===0).length;
+  if(miss) out.push({type:'Data quality',title:'Records need review',text:miss+' records are missing a customer or usable order-value field.'});
+  if(groups.length>5) out.push({type:'Growth',title:'Customer concentration analysis',text:'There are '+groups.length+' identifiable customers. Compare the top accounts with the long tail to find expansion opportunities.'});
+  if(rows.some(r=>r.date)) out.push({type:'Risk',title:'Retention analysis available',text:'Date information was detected. Ask the copilot to investigate inactive or declining ordering behaviour.'});
+  return out.slice(0,5);
+}
+function render(){
+  const vals=rows.map(r=>num(r.value)).filter(v=>v>0), total=vals.reduce((a,b)=>a+b,0);
+  records.textContent=rows.length.toLocaleString('en-IN');
+  gmv.textContent=money(total);
+  const valid=rows.filter(r=>String(r.customer??'').trim() && String(r.value??'').trim() && num(r.value)>0).length;
+  quality.textContent=(rows.length?Math.round(valid/rows.length*100):0)+'%';
+  const s=makeSignals();
+  opps.textContent=s.length;
+  schema.innerHTML=headers.map(h=>'<span>'+h+(field(h)?' → <b>'+field(h)+'</b>':'')+'</span>').join('');
+  opportunities.innerHTML=s.map(x=>'<div class="opportunity"><span class="pill '+(x.type==='Risk'?'bad':x.type==='Data quality'?'warn':'')+'">'+x.type+'</span><b>'+x.title+'</b><p>'+x.text+'</p></div>').join('')||'<div class="empty">No strong signals yet.</div>';
+  preview.innerHTML='<table><thead><tr>'+headers.slice(0,8).map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.slice(0,8).map(r=>'<tr>'+headers.slice(0,8).map(h=>'<td>'+String(r.raw[h]??'').slice(0,45)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+}
+function add(who,t){
+  const d=document.createElement('div');d.className='msg '+who;d.textContent=t;messages.appendChild(d);d.scrollIntoView();
+}
+function answer(q){
+  if(!rows.length)return'Please upload a CSV, XLS or XLSX dataset first.';
+  const total=rows.reduce((a,r)=>a+num(r.value),0),vals=rows.map(r=>num(r.value)).filter(Boolean),avg=vals.length?total/vals.length:0,ql=q.toLowerCase();
+  if(ql.includes('missing')||ql.includes('quality')) return 'Data quality check:\n• '+rows.length+' records loaded\n• '+rows.filter(r=>!String(r.customer??'').trim()).length+' missing customer values\n• '+rows.filter(r=>!String(r.value??'').trim()||num(r.value)===0).length+' missing/unreadable order values\n• Overall required-field score: '+quality.textContent+'\n\nRecommendation: review invalid rows before automated decisions.';
+  if(ql.includes('top')||ql.includes('customer')){
+    const b={};rows.forEach(r=>{const c=String(r.customer||'Unknown').trim();b[c]=(b[c]||0)+num(r.value)});
+    return 'Highest-value customers:\n'+Object.entries(b).sort((a,b)=>b[1]-a[1]).slice(0,5).map((x,i)=>(i+1)+'. '+x[0]+' — '+money(x[1])).join('\n')+'\n\nThese values are calculated from the uploaded records.';
+  }
+  if(ql.includes('vendor')||ql.includes('supplier')){
+    const b={};rows.forEach(r=>{const s=String(r.supplier||'Unknown').trim();b[s]=(b[s]||0)+num(r.value)});
+    return 'Highest-value suppliers/vendors:\n'+Object.entries(b).sort((a,b)=>b[1]-a[1]).slice(0,5).map((x,i)=>(i+1)+'. '+x[0]+' — '+money(x[1])).join('\n');
+  }
+  if(ql.includes('product')||ql.includes('item')){
+    const b={};rows.forEach(r=>{const p=String(r.product||'Unknown').trim();b[p]=(b[p]||0)+num(r.value)});
+    return 'Highest-value products/items:\n'+Object.entries(b).sort((a,b)=>b[1]-a[1]).slice(0,5).map((x,i)=>(i+1)+'. '+x[0]+' — '+money(x[1])).join('\n');
+  }
+  if(ql.includes('summar')||ql.includes('business')) return 'Business snapshot:\n• '+rows.length.toLocaleString()+' records analyzed\n• Total order value: '+money(total)+'\n• Average order value: '+money(avg)+'\n• Detected columns: '+headers.join(', ')+'\n• '+makeSignals().length+' opportunity/data signals detected';
+  return 'I can analyze '+rows.length+' imported records. Try:\n• “Show my top customers”\n• “Which vendors generate the most revenue?”\n• “Which products sell the most?”\n• “What data is missing?”\n• “Summarize the business”\n\nNumerical answers are calculated from the uploaded dataset.';
+}
+file.addEventListener('change',e=>load([...e.target.files]));
+ask.onclick=()=>{const q=question.value.trim();if(!q)return;add('user',q);question.value='';setTimeout(()=>add('ai',answer(q)),180)};
+question.addEventListener('keydown',e=>{if(e.key==='Enter')ask.click()});
 </script></body></html>
