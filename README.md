@@ -42,3 +42,23 @@ The LLM should explain and orchestrate, while deterministic code or database que
 
 ## Disclaimer
 This is an independent portfolio project and is not affiliated with or endorsed by IndiaMART.
+
+
+## GitHub Pages
+
+This repository is configured for GitHub Pages deployment through GitHub Actions. GitHub's recommended Pages workflow publishes the static site from `main` on every push.
+
+### Enable the site once
+
+1. Open **Settings → Pages** in this repository.
+2. Under **Build and deployment → Source**, select **GitHub Actions**.
+3. Pushes to `main` will then deploy the site automatically.
+4. Open **Actions** to monitor the deployment.
+
+Expected site URL:
+
+https://gamingzonehigh-boop.github.io/northstar-crm/
+
+The MVP is fully client-side, so CSV/XLS/XLSX parsing happens in the browser. No API key is required for the current demo.
+
+> GitHub Pages is static hosting. The current MVP therefore uses deterministic in-browser analysis rather than a server-side LLM. A future agent/RAG backend should be deployed separately and connected through a secure API.
